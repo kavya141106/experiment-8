@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Collection REST API Dashboard</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">Experiment 8: Book API Tester</span>
+            <span class="badge bg-success">API Server Active</span>
+        </div>
+    </nav>
+
+    <div class="container pb-5">
+        <div class="row">
+            <!-- Left: Add / Edit Form -->
+            <div class="col-lg-4 mb-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-primary text-white py-3">
+                        <h5 class="mb-0" id="formTitle">Add New Book</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="bookForm">
+                            <input type="hidden" id="bookId">
+                            <div class="mb-3">
+                                <label for="bookTitle" class="form-label small fw-bold">Title</label>
+                                <input type="text" class="form-control" id="bookTitle" required placeholder="e.g. Clean Code">
+                            </div>
+                            <div class="mb-3">
+                                <label for="bookAuthor" class="form-label small fw-bold">Author</label>
+                                <input type="text" class="form-control" id="bookAuthor" required placeholder="e.g. Robert C. Martin">
+                            </div>
+                            <div class="mb-3">
+                                <label for="bookYear" class="form-label small fw-bold">Year</label>
+                                <input type="number" class="form-control" id="bookYear" placeholder="e.g. 2008" value="2024">
+                            </div>
+                            <div class="mb-3">
+                                <label for="bookGenre" class="form-label small fw-bold">Genre</label>
+                                <input type="text" class="form-control" id="bookGenre" placeholder="e.g. Software Engineering">
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="submit" id="submitBtn" class="btn btn-primary">Save Book</button>
+                                <button type="button" id="cancelBtn" class="btn btn-outline-secondary d-none">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Interactive Book List & API Inspector -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Current Book Records</h5>
+                        <button class="btn btn-sm btn-outline-primary" id="refreshBtn">Refresh Data</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Title</th>
+                                        <th>Author</th>
+                                        <th>Year</th>
+                                        <th>Genre</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="booksTableBody">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Response Log -->
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-dark text-white py-2">
+                        <small class="fw-bold">Latest REST Endpoint Response (JSON)</small>
+                    </div>
+                    <div class="card-body bg-light">
+                        <pre id="jsonLog" class="mb-0 text-dark small" style="max-height: 180px; overflow-y: auto;">{"status": "Ready to test endpoints"}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/books';
+        const form = document.getElementById('bookForm');
+        const bookIdInput = document.getElementById('bookId');
+        const titleInput = document.getElementById('bookTitle');
+        const authorInput = document.getElementById('bookAuthor');
+        const yearInput = document.getElementById('bookYear');
+        const genreInput = document.getElementById('bookGenre');
+        const submitBtn = document.getElementById('submitBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const formTitle = document.getElementById('formTitle');
+        const booksTableBody = document.getElementById('booksTableBody');
+        const jsonLog = document.getElementById('jsonLog');
+
+        function logResponse(data) {
+            jsonLog.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function fetchBooks() {
+            try {
+                const res = await fetch(API_URL);
+                const result = await res.json();
+                logResponse(result);
+                renderTable(result.data || []);
+            } catch (err) {
+                logResponse({ error: err.message });
+            }
+        }
+
+        function renderTable(books) {
+            booksTableBody.innerHTML = '';
+            if (books.length === 0) {
+                booksTableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No books available</td></tr>';
+                return;
+            }
+            books.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="badge bg-secondary">#${b.id}</span></td>
+                    <td class="fw-semibold">${b.title}</td>
+                    <td>${b.author}</td>
+                    <td>${b.year}</td>
+                    <td><span class="badge bg-light text-dark border">${b.genre}</span></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="editBook(${b.id}, '${escapeQuotes(b.title)}', '${escapeQuotes(b.author)}', ${b.year}, '${escapeQuotes(b.genre)}')">Edit</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteBook(${b.id})">Delete</button>
+                    </td>
+                `;
+                booksTableBody.appendChild(tr);
+            });
+        }
+
+        function escapeQuotes(str) {
+            return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        window.editBook = function(id, title, author, year, genre) {
+            bookIdInput.value = id;
+            titleInput.value = title;
+            authorInput.value = author;
+            yearInput.value = year;
+            genreInput.value = genre;
+
+            formTitle.textContent = `Edit Book #${id}`;
+            submitBtn.textContent = 'Update Book';
+            submitBtn.className = 'btn btn-warning';
+            cancelBtn.classList.remove('d-none');
+        };
+
+        cancelBtn.addEventListener('click', resetForm);
+
+        function resetForm() {
+            bookIdInput.value = '';
+            form.reset();
+            formTitle.textContent = 'Add New Book';
+            submitBtn.textContent = 'Save Book';
+            submitBtn.className = 'btn btn-primary';
+            cancelBtn.classList.add('d-none');
+        }
+
+        window.deleteBook = async function(id) {
+            if (!confirm(`Delete book #${id}?`)) return;
+            try {
+                const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                const result = await res.json();
+                logResponse(result);
+                fetchBooks();
+            } catch (err) {
+                logResponse({ error: err.message });
+            }
+        };
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = bookIdInput.value;
+            const payload = {
+                title: titleInput.value,
+                author: authorInput.value,
+                year: parseInt(yearInput.value),
+                genre: genreInput.value
+            };
+
+            try {
+                let res;
+                if (id) {
+                    // Update (PUT)
+                    res = await fetch(`${API_URL}/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    // Create (POST)
+                    res = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+                const result = await res.json();
+                logResponse(result);
+                resetForm();
+                fetchBooks();
+            } catch (err) {
+                logResponse({ error: err.message });
+            }
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', fetchBooks);
+
+        // Initial Load
+        fetchBooks();
+    </script>
+</body>
+</html>
